@@ -3,13 +3,18 @@ package ru.gb.javafxchat.client;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import ru.gb.javafxchat.Command;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 
 public class ChatController {
+    @FXML
+    private ListView<String> clientList;
     @FXML
     private HBox authBox;
     @FXML
@@ -17,13 +22,16 @@ public class ChatController {
     @FXML
     private PasswordField passField;
     @FXML
-    private VBox messageBox;
+    private HBox messageBox;
 
     @FXML
     private TextArea messageArea;
     @FXML
     private TextField messageField;
+
     private final ChatClient client;
+
+    private String selectedNick;
 
     public ChatController() {
         this.client = new ChatClient(this);
@@ -60,8 +68,12 @@ public class ChatController {
             return;
         }
 
-
-        client.sendMessage(message);
+        if(selectedNick != null){
+            client.sendMessage(Command.PRIVATE_MESSAGE, selectedNick, message);
+            selectedNick = null;
+        } else {
+            client.sendMessage(Command.MESSAGE, message);
+        }
         messageField.clear();
         messageField.requestFocus();
     }
@@ -75,8 +87,34 @@ public class ChatController {
         messageBox.setVisible(success);
        }
 
-    public void signinBtnClick() {
-        client.sendMessage("/auth " + loginField.getText() + " " + passField.getText());
+    public void signInBtnClick() {
+        client.sendMessage(Command.AUTH, loginField.getText(), passField.getText());
 
+    }
+
+    public void showError(String errorMessage) {
+
+     final Alert alert = new Alert(Alert.AlertType.ERROR, errorMessage,
+        new ButtonType("OK", ButtonBar.ButtonData.OK_DONE));
+        alert.setTitle("Error!");
+        alert.showAndWait();
+    }
+
+    public void selectClient(MouseEvent mouseEvent) {
+      if(mouseEvent.getClickCount() == 2){
+         final String selectedNick = clientList.getSelectionModel().getSelectedItem();
+         if(selectedNick != null && !selectedNick.isEmpty()){
+             this.selectedNick = selectedNick;
+         }
+      }
+    }
+
+    public void updateClientList(String[] clients) {
+        clientList.getItems().clear();
+        clientList.getItems().addAll(clients);
+    }
+
+    public void signOutClick() {
+        client.sendMessage(Command.END);
     }
 }
