@@ -11,12 +11,14 @@ import java.net.Socket;
 
 public class ClientHandler {
 
+    private static final int AUTH_TIMEOUT = 120_000;
     private Socket socket;
     private ChatServer server;
     private DataInputStream in;
     private DataOutputStream out;
     private String nick;
     private AuthService authService;
+    private Thread timeoutThread;
 
 
     public ClientHandler(Socket socket, ChatServer server, AuthService authService) {
@@ -29,17 +31,21 @@ public class ClientHandler {
             this.in = new DataInputStream(socket.getInputStream());
             this.out = new DataOutputStream(socket.getOutputStream());
 
-
-
+        this.timeoutThread = new Thread(() -> {
+            try {
+                Thread.sleep(AUTH_TIMEOUT);
+                sendMessage(Command.STOP);
+            } catch (InterruptedException e) {
+                System.out.println("Успешная авторизация");
+            }
+        });
+        timeoutThread.start();
 
             new Thread(() -> {
                 try {
-                  authenticate();
-                    try {
-                        readMessages();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+                  if (authenticate()) {
+                    readMessages();
+                 }
                 } finally {
                     closeConnection();
                 }
@@ -51,13 +57,17 @@ public class ClientHandler {
         }
     }
 
-    private void authenticate() {
+    private boolean authenticate() {
         while (true) {
             try {
-                final String message = in.readUTF();
-                if (Command.isCommand(message)) {
+
+                    final String message = in.readUTF();
                     final Command command = Command.getCommand(message);
-                    if (command == Command.AUTH) {
+
+                    if (command == Command.END) {
+                        return false;
+                    }
+                    if (command == Command.AUTH){
                         final String[] params = command.parse(message);
                         final String login = params[0];
                         final String password = params[1];
@@ -71,13 +81,12 @@ public class ClientHandler {
                             this.nick = nick;
                             server.broadcast(Command.MESSAGE, "Пользователь " + nick + " зашёл в чат");
                             server.subscribe(this);
-                            break;
+                            return true;
                         } else {
                             sendMessage(Command.ERROR, "Неверные логин и пароль");
                         }
                     }
 
-                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -123,7 +132,7 @@ public class ClientHandler {
         }
     }
 
-    private void readMessages() throws IOException {
+    private void readMessages() {
         while (true) {
             try {
                 final String message = in.readUTF();

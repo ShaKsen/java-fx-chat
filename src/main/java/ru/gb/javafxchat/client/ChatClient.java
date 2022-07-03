@@ -7,9 +7,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.time.Duration;
-import java.util.Arrays;
-import java.util.concurrent.*;
+
 
 import static ru.gb.javafxchat.Command.*;
 
@@ -30,23 +28,22 @@ public class ChatClient {
         in = new DataInputStream(socket.getInputStream());
         out = new DataOutputStream(socket.getOutputStream());
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
+        new Thread(() -> {
                 try {
-                    waitAuth();
-                    readMessages();
+                  if(waitAuth()) {
+                      readMessages();
+                  }
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
                     closeConnection();
                 }
-            }
+
         }).start();
 
     }
 
-    private void waitAuth() throws IOException {
+    private boolean waitAuth() throws IOException {
         while (true) {
 
 
@@ -57,11 +54,21 @@ public class ChatClient {
                     final String nick = params [0];
                     controller.setAuth(true);
                     controller.addMessage("Успешная авторизация под ником " + nick);
-                    break;
+                    return true;
                 }
                 if (command == ERROR){
                    Platform.runLater(() -> controller.showError(params[0]));
                     continue;
+                }
+                if (command == STOP){
+    Platform.runLater(() -> controller.showError("Истекло время на авторизацию, перезапустите приложение"));
+    try {
+        Thread.sleep(5000);
+        sendMessage(END);
+    } catch (InterruptedException e){
+        e.printStackTrace();
+    }
+    return false;
                 }
             }
         }
@@ -88,6 +95,7 @@ public class ChatClient {
                 e.printStackTrace();
             }
         }
+        System.exit(0);
     }
 
     private void readMessages() throws IOException {
